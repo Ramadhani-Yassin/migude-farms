@@ -1,0 +1,164 @@
+<script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import {Head} from '@inertiajs/vue3';
+import CardTable from "@/Components/Cards/CardTable.vue";
+import TableData from "@/Components/TableData.vue";
+import Button from "@/Components/Button.vue";
+import InputError from "@/Components/InputError.vue";
+import Modal from "@/Components/Modal.vue";
+
+const props = defineProps({
+    filters: Object,
+    unitTypes: Object,
+});
+
+import {useForm} from '@inertiajs/vue3';
+import {nextTick, ref} from 'vue';
+import {showToast} from "@/Utils/Helper.js";
+
+const selectedUnitType = ref(null);
+const showCreateModal = ref(false);
+const showEditModal = ref(false);
+const showDeleteModal = ref(false);
+const nameInput = ref(null);
+const tableHeads = ref(['#', "Name", "Symbol", "Unit Volume", "Action"]);
+
+const form = useForm({
+    name: null,
+    symbol: null,
+    unit_volume: 1,
+});
+
+const createUnitTypeModal = () => {
+    showCreateModal.value = true;
+    nextTick(() => nameInput.value.focus());
+};
+
+const editUnitTypeModal = (unitType) => {
+    selectedUnitType.value = unitType;
+    form.name = unitType.name
+    form.symbol = unitType.symbol
+    form.unit_volume = unitType.unit_volume ?? 1
+    showEditModal.value = true;
+    nextTick(() => nameInput.value.focus());
+};
+
+const deleteUnitTypeModal = (unitType) => {
+    selectedUnitType.value = unitType;
+    showDeleteModal.value = true;
+};
+
+const createUnitType = () => {
+    form.post(route('unit-types.store'), {
+        preserveScroll: true,
+        onSuccess: () => { closeModal(); showToast(); },
+        onError: () => nameInput.value.focus(),
+    });
+};
+
+const updateUnitType = () => {
+    form.put(route('unit-types.update', selectedUnitType.value.id), {
+        preserveScroll: true,
+        onSuccess: () => { closeModal(); showToast(); },
+        onError: () => nameInput.value.focus(),
+    });
+};
+
+const deleteUnitType = () => {
+    form.post(route('unit-types.destroy', selectedUnitType.value.id), {
+        preserveScroll: true,
+        onSuccess: () => { closeModal(); showToast(); },
+    });
+};
+
+const closeModal = () => {
+    showCreateModal.value = false;
+    showEditModal.value = false;
+    showDeleteModal.value = false;
+    form.reset();
+};
+</script>
+
+<template>
+    <Head title="UnitType"/>
+
+    <AuthenticatedLayout>
+        <template #breadcrumb>
+            Unit Types
+        </template>
+
+        <div class="flex flex-wrap">
+            <div class="w-full px-4">
+                <CardTable
+                    indexRoute="unit-types.index"
+                    :paginatedData="props.unitTypes"
+                    :filters="props.filters"
+                    :tableHeads="tableHeads"
+                >
+                    <template #cardHeader>
+                        <h4 class="text-2xl">Unit Types ({{ unitTypes.total }})</h4>
+                    </template>
+                    <template #cardHeaderRight>
+                        <div class="flex items-center gap-2">
+                            <a :href="route('unit-types.index', { export: 'excel' })" class="active:scale-95 rounded bg-gray-700 px-4 py-2 text-white text-xs font-bold uppercase shadow hover:shadow-lg outline-none focus:outline-none ease-linear transition-all duration-150">Export</a>
+                            <Button @click="createUnitTypeModal">Create UnitType</Button>
+                        </div>
+                    </template>
+
+                    <tr v-for="(unitType, index) in unitTypes.data" :key="unitType.id">
+                        <TableData>
+                            {{ (unitTypes.current_page * unitTypes.per_page) - (unitTypes.per_page - (index + 1)) }}
+                        </TableData>
+                        <TableData>{{ unitType.name }}</TableData>
+                        <TableData>{{ unitType.symbol }}</TableData>
+                        <TableData>{{ unitType.unit_volume ?? 1 }}</TableData>
+                        <TableData>
+                            <Button @click="editUnitTypeModal(unitType)"><i class="fa fa-edit"></i></Button>
+                            <Button @click="deleteUnitTypeModal(unitType)" type="red"><i class="fa fa-trash-alt"></i></Button>
+                        </TableData>
+                    </tr>
+                </CardTable>
+            </div>
+        </div>
+
+        <Modal title="Create" :show="showCreateModal" :formProcessing="form.processing" @close="closeModal" @submitAction="createUnitType">
+            <div>
+                <label for="name">Name</label>
+                <input id="name" ref="nameInput" v-model="form.name" @keyup.enter="createUnitType" type="text" placeholder="Enter name" class="px-3 py-2 rounded border w-full" />
+                <InputError :message="form.errors.name"/>
+            </div>
+            <div class="mt-3">
+                <label for="symbol">Symbol</label>
+                <input id="symbol" v-model="form.symbol" type="text" placeholder="Enter symbol (e.g. l, ml)" class="px-3 py-2 rounded border w-full" />
+                <InputError :message="form.errors.symbol"/>
+            </div>
+            <div class="mt-3">
+                <label for="unit_volume">Unit Volume</label>
+                <input id="unit_volume" v-model="form.unit_volume" type="number" step="0.000001" min="0" placeholder="Enter volume per unit (in liters)" class="px-3 py-2 rounded border w-full" />
+                <InputError :message="form.errors.unit_volume"/>
+            </div>
+        </Modal>
+
+        <Modal title="Edit" :show="showEditModal" :formProcessing="form.processing" @close="closeModal" @submitAction="updateUnitType">
+            <div>
+                <label for="name">Name</label>
+                <input id="name" ref="nameInput" v-model="form.name" @keyup.enter="updateUnitType" type="text" placeholder="Enter name" class="px-3 py-2 rounded border w-full" />
+                <InputError :message="form.errors.name"/>
+            </div>
+            <div class="mt-3">
+                <label for="symbol">Symbol</label>
+                <input id="symbol" v-model="form.symbol" type="text" placeholder="Enter symbol (e.g. l, ml)" class="px-3 py-2 rounded border w-full" />
+                <InputError :message="form.errors.symbol"/>
+            </div>
+            <div class="mt-3">
+                <label for="unit_volume">Unit Volume</label>
+                <input id="unit_volume" v-model="form.unit_volume" type="number" step="0.000001" min="0" placeholder="Enter volume per unit (in liters)" class="px-3 py-2 rounded border w-full" />
+                <InputError :message="form.errors.unit_volume"/>
+            </div>
+        </Modal>
+
+        <Modal title="Delete" :show="showDeleteModal" :formProcessing="form.processing" @close="closeModal" @submitAction="deleteUnitType" maxWidth="sm" submitButtonText="Yes, delete it!">
+            Are you sure you want to delete this unit type?
+        </Modal>
+    </AuthenticatedLayout>
+</template>
