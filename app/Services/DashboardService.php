@@ -84,26 +84,49 @@ class DashboardService
 
     private function prepareProfitLineChart(): array
     {
-        $currentYearProfit = Order::selectRaw('MONTH(created_at) as month, SUM(total) as total_sales')
+        // Get sales data for current year (last 7 months)
+        $currentYearSales = Order::selectRaw('MONTH(created_at) as month, SUM(total) as total_sales')
             ->where('created_at', '>=', Carbon::now()->subMonths(7))
             ->groupBy('month')
             ->pluck('total_sales', 'month');
 
-        $lastYearProfit = Order::selectRaw('MONTH(created_at) as month, SUM(total) as total_sales')
+        // Get expenses data for current year (last 7 months)
+        $currentYearExpenses = Expense::selectRaw('MONTH(expense_date) as month, SUM(amount) as total_expenses')
+            ->where(ExpenseFieldsEnum::EXPENSE_DATE->value, '>=', Carbon::now()->subMonths(7))
+            ->groupBy('month')
+            ->pluck('total_expenses', 'month');
+
+        // Get sales data for last year (last 7 months)
+        $lastYearSales = Order::selectRaw('MONTH(created_at) as month, SUM(total) as total_sales')
             ->whereYear('created_at', Carbon::now()->subYear()->year)
             ->where('created_at', '>=', Carbon::now()->subYear()->subMonths(7))
             ->groupBy('month')
             ->pluck('total_sales', 'month');
 
-        // Loop to get the last 7 months
+        // Get expenses data for last year (last 7 months)
+        $lastYearExpenses = Expense::selectRaw('MONTH(expense_date) as month, SUM(amount) as total_expenses')
+            ->whereYear(ExpenseFieldsEnum::EXPENSE_DATE->value, Carbon::now()->subYear()->year)
+            ->where(ExpenseFieldsEnum::EXPENSE_DATE->value, '>=', Carbon::now()->subYear()->subMonths(7))
+            ->groupBy('month')
+            ->pluck('total_expenses', 'month');
+
+        // Loop to get the last 7 months and calculate profit (sales - expenses)
         $months = [];
         $currentYearProfitValues = [];
         $lastYearProfitValues = [];
         for ($i = 6; $i >= 0; $i--) {
             $carbon = Carbon::now()->subMonths($i);
             $months[] = $carbon->format('F');
-            $currentYearProfitValues[] = (double) ($currentYearProfit[$carbon->month] ?? 0);
-            $lastYearProfitValues[] = (double) ($lastYearProfit[$carbon->month] ?? 0);
+            
+            // Calculate profit = sales - expenses for current year
+            $currentSales = (double) ($currentYearSales[$carbon->month] ?? 0);
+            $currentExpenses = (double) ($currentYearExpenses[$carbon->month] ?? 0);
+            $currentYearProfitValues[] = $currentSales - $currentExpenses;
+            
+            // Calculate profit = sales - expenses for last year
+            $lastSales = (double) ($lastYearSales[$carbon->month] ?? 0);
+            $lastExpenses = (double) ($lastYearExpenses[$carbon->month] ?? 0);
+            $lastYearProfitValues[] = $lastSales - $lastExpenses;
         }
 
         return [
